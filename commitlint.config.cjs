@@ -1,4 +1,4 @@
-const configBase = require("./commitlint.base");
+const configBase = require("./commitlint.base.cjs");
 
 // eslint-disable-next-line no-undef
 const isRunningInCI = !!process.env.GITLAB_CI;
