@@ -46,7 +46,7 @@ module.exports = {
       {
         singleQuote: false,
         parser: "flow",
-        trailingComma: "none",
+        trailingComma: true,
       },
     ],
     "@typescript-eslint/no-explicit-any": 0,
