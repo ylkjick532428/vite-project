@@ -26,5 +26,12 @@ If you are developing a production application, we recommend updating the config
 - Optionally add `plugin:@typescript-eslint/stylistic-type-checked`
 - Install [eslint-plugin-react](https://github.com/jsx-eslint/eslint-plugin-react) and add `plugin:react/recommended` & `plugin:react/jsx-runtime` to the `extends` list
 
+## update
+npm install -g npm-check-updates
+npm-check-updates
+
+npx npm-check
+or 
+npx npm-check-updates
 
 ## [VS Code Config](https://vscode.dev/profile/github/178f750538570c7770d36b5a4b3b1d76)
