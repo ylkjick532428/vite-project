@@ -35,3 +35,4 @@ or
 npx npm-check-updates
 
 ## [VS Code Config](https://vscode.dev/profile/github/178f750538570c7770d36b5a4b3b1d76)
+
