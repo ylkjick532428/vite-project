@@ -5,6 +5,7 @@
     }
   },
   "dependencies": {
+    "@excalidraw/excalidraw": "^0.17.3",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },
@@ -29,7 +30,7 @@
     "eslint-plugin-n": "^16.2.0",
     "eslint-plugin-prettier": "^5.0.1",
     "eslint-plugin-promise": "^6.1.1",
-    "eslint-plugin-react": "^7.33.2",
+    "eslint-plugin-react": "^7.34.1",
     "eslint-plugin-react-hooks": "^4.6.0",
     "eslint-plugin-react-refresh": "^0.4.4",
     "husky": "^8.0.3",
@@ -37,7 +38,7 @@
     "lodash": "^4.17.21",
     "prettier": "^3.2.2",
     "prettier-eslint": "^16.2.0",
-    "regenerator-runtime": "^0.14.0",
+    "regenerator-runtime": "^0.14.1",
     "sass": "^1.69.5",
     "sass-loader": "^14.0.0",
     "stylelint": "^16.1.0",
