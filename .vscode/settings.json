@@ -1,17 +1,26 @@
 {
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
   "editor.formatOnSave": true,
-  "notebook.formatOnSave.enabled": true,
   "editor.codeActionsOnSave": {
-    "source.fixAll.eslint": "explicit",
-    "source.fixAll.tslint": "explicit",
-    "source.fixAll.stylelint": "explicit"
+    "source.fixAll.eslint": "explicit"
   },
-  "[json]": {
-    "editor.defaultFormatter": "vscode.json-language-features"
-  },
-  "files.eol": "\n",
-  "css.validate": true,
-  "less.validate": true,
-  "scss.validate": true,
-  "cSpell.words": ["stylelint"]
+  "eslint.validate": [
+    "javascript",
+    "javascriptreact",
+    "typescript",
+    "typescriptreact"
+  ],
+  "prettier.requireConfig": true,
+  "prettier.useEditorConfig": false,
+  "typescript.validate.enable": true,
+  "javascript.validate.enable": false,
+  "css.validate": false,
+  "scss.validate": false,
+  "cSpell.words": [
+    "lucide",
+    "notistack",
+    "Subsession",
+    "Subsessions",
+    "tailwindcss"
+  ]
 }

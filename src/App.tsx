@@ -3,9 +3,9 @@ import reactLogo from "./assets/react.svg";
 
 import viteLogo from "./assets/vite.svg";
 
-import "./App.scss";
+import "./App.css";
 
-function App(): JSX.Element {
+const App = () => {
   const [count, setCount] = useState(0);
 
   return (
@@ -31,11 +31,9 @@ function App(): JSX.Element {
           Edit <code>src/App.tsx</code> and save to test HMR
         </p>
       </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
+      <p className="read-the-docs">Click on the Vite and React logos to learn more</p>
     </>
   );
-}
+};
 
 export default App;

@@ -24,13 +24,11 @@ const defaultTypes = {
     title: "Tests",
   },
   build: {
-    description:
-      "Changes that affect the build system or external dependencies (npm, webpack, typescript)",
+    description: "Changes that affect the build system or external dependencies (npm, webpack, typescript)",
     title: "Builds",
   },
   ci: {
-    description:
-      "Changes to our CI configuration files and scripts (NOTE: Does not bump the version)",
+    description: "Changes to our CI configuration files and scripts (NOTE: Does not bump the version)",
     title: "Continuous Integrations",
   },
   chore: {
@@ -53,5 +51,18 @@ const defaultTypes = {
 
 module.exports = {
   types: defaultTypes,
-  scopes: ["Mobile", "API", "Build", "CI"].map((scope) => scope.toLowerCase()),
+  scopes: [
+    "API",
+    "Audio",
+    "Video",
+    "Share",
+    "Participant",
+    "Chat",
+    "Recording",
+    "Caption",
+    "Setting",
+    "Mobile",
+    "Build",
+    "CI",
+  ].map((scope) => scope.toLowerCase()),
 };
