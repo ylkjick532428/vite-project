@@ -13,10 +13,29 @@ import {
   Pie,
   Cell,
 } from "recharts";
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
 
 // Apple-inspired color palette
 const LIGHT_COLORS = ["#007AFF", "#5856D6", "#FF2D55", "#FF9500"];
 const DARK_COLORS = ["#0A84FF", "#5E5CE6", "#FF375F", "#FF9F0A"];
+
+// Add these new constants at the top after the color palettes
+const CHART_HEIGHTS = {
+  mobile: 200,
+  desktop: 300,
+};
+
+const FONT_SIZES = {
+  mobile: {
+    title: 16,
+    heading: 15,
+  },
+  desktop: {
+    title: 18,
+    heading: 16,
+  },
+};
 
 interface MemoryDataPoint {
   timestamp: number;
@@ -57,12 +76,53 @@ interface PerformanceChartsProps {
   };
 }
 
+interface ExportData {
+  timestamp: string;
+  timingMetrics: {
+    name: string;
+    time: number | undefined;
+  }[];
+  memoryData: {
+    name: string;
+    value: number | undefined;
+  }[];
+  resourceData: Array<{
+    name: string;
+    type: string;
+    duration: number;
+    size: number;
+  }>;
+  performanceData: PerformanceDataPoint[];
+}
+
+// Add this helper function near the top of the component
+const isMobileIOS = () => {
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+};
+
+// Add this near the top with other interfaces
+interface ChartData {
+  memoryTimeSeries: MemoryDataPoint[];
+  performanceData: PerformanceDataPoint[];
+}
+
+// Add this helper function near other utility functions
+const formatTooltipValue = (value: number, unit: string) => {
+  return `${value} ${unit}`;
+};
+
+// Update the component to include state for all history
 export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({ metrics }) => {
   const [isDarkMode, setIsDarkMode] = useState(false);
-  const [memoryTimeSeries, setMemoryTimeSeries] = useState<MemoryDataPoint[]>([]);
-  const [performanceData, setPerformanceData] = useState<PerformanceDataPoint[]>([]);
+  const [chartData, setChartData] = useState<ChartData>({
+    memoryTimeSeries: [],
+    performanceData: [],
+  });
   const [cpuWorker, setCpuWorker] = useState<Worker | null>(null);
   const [gpuContext, setGpuContext] = useState<WebGLRenderingContext | null>(null);
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [baseTime, setBaseTime] = useState(Date.now());
 
   useEffect(() => {
     // Check system color scheme
@@ -76,21 +136,29 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({ metrics })
   }, []);
 
   useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  useEffect(() => {
     // Initialize memory monitoring
     const updateMemoryUsage = () => {
       const { memory } = performance as any;
       if (memory) {
         const newDataPoint = {
           timestamp: Date.now(),
-          usedHeap: Math.round(memory.usedJSHeapSize / (1024 * 1024)), // Convert to MB
+          usedHeap: Math.round(memory.usedJSHeapSize / (1024 * 1024)),
           totalHeap: Math.round(memory.totalJSHeapSize / (1024 * 1024)),
         };
 
-        setMemoryTimeSeries((prev) => {
-          const newData = [...prev, newDataPoint];
-          // Keep last 30 seconds of data
-          return newData.filter((point) => point.timestamp > Date.now() - 30000);
-        });
+        setChartData((prev) => ({
+          ...prev,
+          memoryTimeSeries: [...prev.memoryTimeSeries, newDataPoint],
+        }));
       }
     };
 
@@ -150,24 +218,28 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({ metrics })
           timestamp: Date.now(),
           usedHeap: Math.round(memory.usedJSHeapSize / (1024 * 1024)),
           totalHeap: Math.round(memory.totalJSHeapSize / (1024 * 1024)),
-          cpuUsage: 0, // Will be updated by worker
+          cpuUsage: 0,
           gpuUsage: estimateGPUUsage(gpuContext),
         };
 
-        setPerformanceData((prev) => {
-          const newData = [...prev, newDataPoint];
-          return newData.filter((point) => point.timestamp > Date.now() - 30000);
-        });
+        setChartData((prev) => ({
+          ...prev,
+          performanceData: [...prev.performanceData, newDataPoint],
+        }));
       }
     };
 
     cpuWorker.onmessage = (event) => {
-      setPerformanceData((prev) => {
-        const lastPoint = prev[prev.length - 1];
+      setChartData((prev) => {
+        const lastPoint = prev.performanceData[prev.performanceData.length - 1];
         if (lastPoint) {
           lastPoint.cpuUsage = event.data;
+          return {
+            ...prev,
+            performanceData: [...prev.performanceData.slice(0, -1), lastPoint],
+          };
         }
-        return [...prev];
+        return prev;
       });
     };
 
@@ -200,40 +272,249 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({ metrics })
     .slice(0, 10) // Show only top 10 resources
     .sort((a, b) => b.duration - a.duration);
 
-  const chartStyle = {
+  const chartStyle: React.CSSProperties = {
     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
     backgroundColor,
-    borderRadius: "12px",
-    padding: "16px",
-    marginBottom: "24px",
+    borderRadius: isMobile ? "8px" : "12px",
+    padding: isMobile ? "12px" : "16px",
+    marginBottom: isMobile ? "16px" : "24px",
+    WebkitOverflowScrolling: "touch" as const,
   };
 
   const formatTimestamp = (timestamp: number) => {
-    const date = new Date(timestamp);
-    return `${date.getSeconds()}:${date.getMilliseconds().toString().padStart(3, "0")}`;
+    const seconds = Math.floor((timestamp - baseTime) / 1000);
+    const milliseconds = Math.floor(timestamp - baseTime - seconds * 1000);
+    return `${seconds}:${milliseconds.toString().padStart(3, "0")}`;
   };
 
   const isMemoryAPIAvailable = () => {
     return (performance as any).memory !== undefined;
   };
 
+  const exportToJson = () => {
+    const exportData: ExportData = {
+      timestamp: new Date().toISOString(),
+      timingMetrics: timingData,
+      memoryData: memoryData,
+      resourceData: resourceData,
+      performanceData: chartData.performanceData,
+    };
+
+    const jsonString = JSON.stringify(exportData, null, 2);
+    const blob = new Blob([jsonString], { type: "application/json" });
+
+    if (isMobileIOS()) {
+      // For iOS devices, open in a new tab
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank");
+      setTimeout(() => URL.revokeObjectURL(url), 100);
+    } else {
+      // For other devices, try direct download
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `performance-data-${new Date().toISOString()}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }
+  };
+
+  const exportToPdf = async () => {
+    const chartsContainer = document.getElementById("performance-charts");
+    if (!chartsContainer) return;
+
+    try {
+      const pdf = new jsPDF("p", "mm", "a4");
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      let currentPosition = 10;
+
+      // Add title
+      pdf.setFontSize(16);
+      pdf.text("Performance Report", pdfWidth / 2, currentPosition, { align: "center" });
+      currentPosition += 10;
+
+      // Add timestamp
+      pdf.setFontSize(10);
+      pdf.text(`Generated on: ${new Date().toLocaleString()}`, 10, currentPosition);
+      currentPosition += 10;
+
+      // Convert each chart to canvas and add to PDF
+      const charts = chartsContainer.getElementsByClassName("chart-container");
+      for (let i = 0; i < charts.length; i++) {
+        const chart = charts[i] as HTMLElement;
+        const canvas = await html2canvas(chart, {
+          scale: 2,
+          backgroundColor: isDarkMode ? "#1C1C1E" : "#FFFFFF",
+        });
+
+        // Calculate dimensions to fit the page width while maintaining aspect ratio
+        const imgWidth = pdfWidth - 20;
+        const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+        // Add new page if needed
+        if (currentPosition + imgHeight > pdfHeight) {
+          pdf.addPage();
+          currentPosition = 10;
+        }
+
+        // Add chart title
+        const title = chart.getElementsByTagName("h3")[0]?.textContent;
+        if (title) {
+          pdf.setFontSize(12);
+          pdf.text(title, 10, currentPosition);
+          currentPosition += 7;
+        }
+
+        // Add chart image
+        const imgData = canvas.toDataURL("image/png");
+        pdf.addImage(imgData, "PNG", 10, currentPosition, imgWidth, imgHeight);
+        currentPosition += imgHeight + 10;
+      }
+
+      if (isMobileIOS()) {
+        // For iOS devices, open in a new tab
+        pdf.output("dataurlnewwindow");
+      } else {
+        // For other devices, try direct download
+        pdf.save(`performance-report-${new Date().toISOString()}.pdf`);
+      }
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      setErrorMessage("Failed to generate PDF. Please try again.");
+      setTimeout(() => setErrorMessage(null), 3000);
+    }
+  };
+
+  // Update the clear history function to reset timestamps
+  const clearHistory = () => {
+    const currentTime = Date.now();
+    setChartData({
+      memoryTimeSeries: [],
+      performanceData: [],
+    });
+    // Reset the base time after clearing
+    setBaseTime(currentTime);
+  };
+
   return (
     <div
+      id="performance-charts"
       style={{
         width: "100%",
-        padding: "20px",
+        padding: isMobile ? "12px" : "20px",
         backgroundColor,
         color: textColor,
         transition: "background-color 0.3s, color 0.3s",
+        WebkitTapHighlightColor: "transparent", // Remove tap highlight on iOS
       }}
     >
-      <div style={chartStyle}>
-        <h3 style={{ fontSize: "18px", fontWeight: 600, marginBottom: "16px" }}>Timing Metrics (ms)</h3>
-        <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={timingData}>
+      {errorMessage && (
+        <div
+          style={{
+            backgroundColor: colors[2],
+            color: "#FFFFFF",
+            padding: "12px",
+            borderRadius: "6px",
+            marginBottom: "16px",
+            textAlign: "center",
+          }}
+        >
+          {errorMessage}
+        </div>
+      )}
+      <div
+        style={{
+          display: "flex",
+          gap: isMobile ? "8px" : "10px",
+          marginBottom: isMobile ? "16px" : "20px",
+          justifyContent: "flex-end",
+          flexWrap: "wrap",
+        }}
+      >
+        <button
+          onClick={clearHistory}
+          style={{
+            padding: isMobile ? "6px 12px" : "8px 16px",
+            borderRadius: "6px",
+            border: "none",
+            backgroundColor: colors[2], // Using a different color
+            color: "#FFFFFF",
+            cursor: "pointer",
+            fontWeight: 500,
+            fontSize: isMobile ? "14px" : "16px",
+            transition: "opacity 0.2s",
+            WebkitTapHighlightColor: "transparent",
+            touchAction: "manipulation",
+          }}
+          onMouseOver={(e) => (e.currentTarget.style.opacity = "0.8")}
+          onMouseOut={(e) => (e.currentTarget.style.opacity = "1")}
+        >
+          Clear History
+        </button>
+        <button
+          onClick={exportToJson}
+          style={{
+            padding: isMobile ? "6px 12px" : "8px 16px",
+            borderRadius: "6px",
+            border: "none",
+            backgroundColor: colors[0],
+            color: "#FFFFFF",
+            cursor: "pointer",
+            fontWeight: 500,
+            fontSize: isMobile ? "14px" : "16px",
+            transition: "opacity 0.2s",
+            WebkitTapHighlightColor: "transparent",
+            touchAction: "manipulation",
+          }}
+          onMouseOver={(e) => (e.currentTarget.style.opacity = "0.8")}
+          onMouseOut={(e) => (e.currentTarget.style.opacity = "1")}
+        >
+          {isMobileIOS() ? "View JSON" : "Export to JSON"}
+        </button>
+        <button
+          onClick={exportToPdf}
+          style={{
+            padding: isMobile ? "6px 12px" : "8px 16px",
+            borderRadius: "6px",
+            border: "none",
+            backgroundColor: colors[1],
+            color: "#FFFFFF",
+            cursor: "pointer",
+            fontWeight: 500,
+            fontSize: isMobile ? "14px" : "16px",
+            transition: "opacity 0.2s",
+            WebkitTapHighlightColor: "transparent",
+            touchAction: "manipulation",
+          }}
+          onMouseOver={(e) => (e.currentTarget.style.opacity = "0.8")}
+          onMouseOut={(e) => (e.currentTarget.style.opacity = "1")}
+        >
+          {isMobileIOS() ? "View PDF" : "Export to PDF"}
+        </button>
+      </div>
+
+      <div className="chart-container" style={chartStyle}>
+        <h3
+          style={{
+            fontSize: isMobile ? FONT_SIZES.mobile.heading : FONT_SIZES.desktop.heading,
+            fontWeight: 600,
+            marginBottom: isMobile ? "12px" : "16px",
+          }}
+        >
+          Timing Metrics (ms)
+        </h3>
+        <ResponsiveContainer width="100%" height={isMobile ? CHART_HEIGHTS.mobile : CHART_HEIGHTS.desktop}>
+          <BarChart data={timingData} margin={isMobile ? { top: 5, right: 10, left: -20, bottom: 5 } : undefined}>
             <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
-            <XAxis dataKey="name" tick={{ fill: textColor }} />
-            <YAxis tick={{ fill: textColor }} />
+            <XAxis
+              dataKey="name"
+              tick={{ fill: textColor, fontSize: isMobile ? 12 : 14 }}
+              interval={isMobile ? 1 : 0}
+            />
+            <YAxis tick={{ fill: textColor, fontSize: isMobile ? 12 : 14 }} width={isMobile ? 30 : 40} />
             <Tooltip
               contentStyle={{
                 backgroundColor: isDarkMode ? "#2C2C2E" : "#FFFFFF",
@@ -241,17 +522,46 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({ metrics })
                 borderRadius: "8px",
                 boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
               }}
+              formatter={(value: number) => formatTooltipValue(value, "ms")}
             />
             <Bar dataKey="time" fill={colors[0]} radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>
 
+      <div className="chart-container" style={chartStyle}>
+        <h3 style={{ fontSize: "18px", fontWeight: 600, marginBottom: "16px" }}>System Performance (%)</h3>
+        <ResponsiveContainer width="100%" height={300}>
+          <LineChart data={chartData.performanceData}>
+            <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
+            <XAxis
+              dataKey="timestamp"
+              tick={{ fill: textColor }}
+              tickFormatter={formatTimestamp}
+              domain={["dataMin", "dataMax"]}
+            />
+            <YAxis tick={{ fill: textColor }} domain={[0, 100]} />
+            <Tooltip
+              contentStyle={{
+                backgroundColor: isDarkMode ? "#2C2C2E" : "#FFFFFF",
+                border: "none",
+                borderRadius: "8px",
+                boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+              }}
+              labelFormatter={formatTimestamp}
+              formatter={(value: number) => formatTooltipValue(value, "%")}
+            />
+            <Line type="monotone" dataKey="cpuUsage" stroke={colors[2]} name="CPU Usage" strokeWidth={2} dot={false} />
+            <Line type="monotone" dataKey="gpuUsage" stroke={colors[3]} name="GPU Usage" strokeWidth={2} dot={false} />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+
       {isMemoryAPIAvailable() ? (
-        <div style={chartStyle}>
+        <div className="chart-container" style={chartStyle}>
           <h3 style={{ fontSize: "18px", fontWeight: 600, marginBottom: "16px" }}>Memory Usage Over Time (MB)</h3>
           <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={memoryTimeSeries}>
+            <LineChart data={chartData.memoryTimeSeries}>
               <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
               <XAxis
                 dataKey="timestamp"
@@ -268,6 +578,7 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({ metrics })
                   boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
                 }}
                 labelFormatter={formatTimestamp}
+                formatter={(value: number) => formatTooltipValue(value, "MB")}
               />
               <Line
                 type="monotone"
@@ -289,13 +600,13 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({ metrics })
           </ResponsiveContainer>
         </div>
       ) : (
-        <div style={chartStyle}>
+        <div className="chart-container" style={chartStyle}>
           <h3 style={{ fontSize: "18px", fontWeight: 600, marginBottom: "16px" }}>Memory Usage Over Time (MB)</h3>
           <p style={{ color: textColor }}>Memory monitoring is only available in Chromium-based browsers.</p>
         </div>
       )}
 
-      <div style={chartStyle}>
+      <div className="chart-container" style={chartStyle}>
         <h3 style={{ fontSize: "18px", fontWeight: 600, marginBottom: "16px" }}>Resource Loading Times (ms)</h3>
         <ResponsiveContainer width="100%" height={300}>
           <BarChart data={resourceData}>
@@ -309,36 +620,10 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({ metrics })
                 borderRadius: "8px",
                 boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
               }}
+              formatter={(value: number) => formatTooltipValue(value, "ms")}
             />
             <Bar dataKey="duration" fill={colors[1]} radius={[4, 4, 0, 0]} />
           </BarChart>
-        </ResponsiveContainer>
-      </div>
-
-      <div style={chartStyle}>
-        <h3 style={{ fontSize: "18px", fontWeight: 600, marginBottom: "16px" }}>System Performance (%)</h3>
-        <ResponsiveContainer width="100%" height={300}>
-          <LineChart data={performanceData}>
-            <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
-            <XAxis
-              dataKey="timestamp"
-              tick={{ fill: textColor }}
-              tickFormatter={formatTimestamp}
-              domain={["dataMin", "dataMax"]}
-            />
-            <YAxis tick={{ fill: textColor }} domain={[0, 100]} />
-            <Tooltip
-              contentStyle={{
-                backgroundColor: isDarkMode ? "#2C2C2E" : "#FFFFFF",
-                border: "none",
-                borderRadius: "8px",
-                boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
-              }}
-              labelFormatter={formatTimestamp}
-            />
-            <Line type="monotone" dataKey="cpuUsage" stroke={colors[2]} name="CPU Usage" strokeWidth={2} dot={false} />
-            <Line type="monotone" dataKey="gpuUsage" stroke={colors[3]} name="GPU Usage" strokeWidth={2} dot={false} />
-          </LineChart>
         </ResponsiveContainer>
       </div>
     </div>
