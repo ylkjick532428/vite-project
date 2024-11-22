@@ -111,6 +111,22 @@ const formatTooltipValue = (value: number, unit: string) => {
   return `${value} ${unit}`;
 };
 
+// Add this new helper function near the top with other utility functions
+const createECGLine = (dataKey: string, color: string, name: string) => (
+  <Line
+    type="basis"
+    dataKey={dataKey}
+    stroke={color}
+    name={name}
+    strokeWidth={2}
+    dot={false}
+    connectNulls
+    animationDuration={300}
+    // Increase tension to make the line more "sharp"
+    tension={0.8}
+  />
+);
+
 // Update the component to include state for all history
 export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({ metrics }) => {
   const [isDarkMode, setIsDarkMode] = useState(false);
@@ -554,8 +570,8 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({ metrics })
               labelFormatter={formatTimestamp}
               formatter={(value: number) => formatTooltipValue(value, "%")}
             />
-            <Line type="monotone" dataKey="cpuUsage" stroke={colors[2]} name="CPU Usage" strokeWidth={2} dot={false} />
-            <Line type="monotone" dataKey="gpuUsage" stroke={colors[3]} name="GPU Usage" strokeWidth={2} dot={false} />
+            {createECGLine("cpuUsage", colors[2], "CPU Usage")}
+            {createECGLine("gpuUsage", colors[3], "GPU Usage")}
           </LineChart>
         </ResponsiveContainer>
       </div>
@@ -583,22 +599,8 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({ metrics })
                 labelFormatter={formatTimestamp}
                 formatter={(value: number) => formatTooltipValue(value, "MB")}
               />
-              <Line
-                type="monotone"
-                dataKey="usedHeap"
-                stroke={colors[0]}
-                name="Used Heap"
-                strokeWidth={2}
-                dot={false}
-              />
-              <Line
-                type="monotone"
-                dataKey="totalHeap"
-                stroke={colors[1]}
-                name="Total Heap"
-                strokeWidth={2}
-                dot={false}
-              />
+              {createECGLine("usedHeap", colors[0], "Used Heap")}
+              {createECGLine("totalHeap", colors[1], "Total Heap")}
             </LineChart>
           </ResponsiveContainer>
         </div>
