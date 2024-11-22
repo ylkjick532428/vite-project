@@ -109,6 +109,75 @@ class BrowserPerformanceTest {
   }
 
   generateReport(): string {
+    console.log(
+      `%c🔍 Browser Performance Report
+%c===========================
+
+%c📊 Page Load Metrics%c
+------------------
+Total Load Time: %c${this.metrics.timing.totalLoadTime}ms%c
+DOM Content Loaded: %c${this.metrics.timing.domContentLoaded}ms%c
+First Paint: %c${this.metrics.timing.firstPaint}ms%c
+First Contentful Paint: %c${this.metrics.timing.firstContentfulPaint}ms%c
+
+%c💾 Memory Usage%c
+-------------
+Used JS Heap: %c${this.metrics.memory.usedJSHeapSize}MB%c
+Total JS Heap: %c${this.metrics.memory.totalJSHeapSize}MB%c
+JS Heap Limit: %c${this.metrics.memory.jsHeapSizeLimit}MB%c
+
+%c📦 Resource Loading%c
+-----------------
+${this.metrics.resources
+  .map((res) => `%c${res.name}%c (${res.type}): %c${res.duration}ms%c, %c${(res.size / 1024).toFixed(1)}KB%c`)
+  .join("\n")}
+
+%c📐 Layout Metrics%c
+---------------
+Cumulative Layout Shift: %c${this.metrics.layout.cumulativeLayoutShift}%c`,
+      // Title styles
+      "font-size: 20px; font-weight: bold; color: #4CAF50;",
+      "font-size: 16px; color: #666;",
+      // Section headers
+      "font-size: 16px; font-weight: bold; color: #2196F3;",
+      "color: #666;",
+      // Metrics values - alternating styles
+      "font-weight: bold; color: #E91E63;",
+      "color: #666;",
+      "font-weight: bold; color: #E91E63;",
+      "color: #666;",
+      "font-weight: bold; color: #E91E63;",
+      "color: #666;",
+      "font-weight: bold; color: #E91E63;",
+      "color: #666;",
+      // Memory section
+      "font-size: 16px; font-weight: bold; color: #2196F3;",
+      "color: #666;",
+      "font-weight: bold; color: #E91E63;",
+      "color: #666;",
+      "font-weight: bold; color: #E91E63;",
+      "color: #666;",
+      "font-weight: bold; color: #E91E63;",
+      "color: #666;",
+      // Resources section
+      "font-size: 16px; font-weight: bold; color: #2196F3;",
+      "color: #666;",
+      ...this.metrics.resources.flatMap(() => [
+        "font-weight: bold; color: #9C27B0;",
+        "color: #666;",
+        "font-weight: bold; color: #E91E63;",
+        "color: #666;",
+        "font-weight: bold; color: #E91E63;",
+        "color: #666;",
+      ]),
+      // Layout metrics section
+      "font-size: 16px; font-weight: bold; color: #2196F3;",
+      "color: #666;",
+      "font-weight: bold; color: #E91E63;",
+      "color: #666;",
+    );
+
+    // Return plain text version for non-console usage
     return `
     🔍 Browser Performance Report
     ===========================
@@ -138,5 +207,7 @@ class BrowserPerformanceTest {
     `;
   }
 }
+
+(window as any).BrowserPerformanceTest = BrowserPerformanceTest;
 
 export default BrowserPerformanceTest;
