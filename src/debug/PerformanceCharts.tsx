@@ -253,14 +253,17 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({ metrics })
   const backgroundColor = isDarkMode ? "#1C1C1E" : "#FFFFFF";
 
   const timingData = [
-    { name: "Total Load", time: metrics.timing.totalLoadTime },
-    { name: "DOM Content", time: metrics.timing.domContentLoaded },
+    { name: "Total Load", time: metrics.timing.totalLoadTime || 0 },
+    { name: "DOM Content", time: metrics.timing.domContentLoaded || 0 },
     { name: "First Paint", time: typeof metrics.timing.firstPaint === "number" ? metrics.timing.firstPaint : 0 },
     {
       name: "First Contentful",
       time: typeof metrics.timing.firstContentfulPaint === "number" ? metrics.timing.firstContentfulPaint : 0,
     },
-  ];
+  ].map((item) => ({
+    ...item,
+    time: Math.round(item.time),
+  }));
 
   const memoryData = [
     { name: "Used Heap", value: metrics.memory.usedJSHeapSize },
