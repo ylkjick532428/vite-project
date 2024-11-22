@@ -94,10 +94,45 @@ class BrowserPerformanceTest {
   }
 
   measureLayoutMetrics(): void {
-    const layoutShifts = performance.getEntriesByType("layout-shift") as LayoutShiftEntry[];
-    this.metrics.layout = {
-      cumulativeLayoutShift: layoutShifts.reduce((sum, shift) => sum + shift.value, 0).toFixed(3),
-    };
+    // Check if the PerformanceObserver API is available
+    if (!("PerformanceObserver" in window)) {
+      this.metrics.layout = {
+        cumulativeLayoutShift: "Not supported",
+      };
+      return;
+    }
+
+    let clsValue = 0;
+    const clsEntries: PerformanceEntry[] = [];
+
+    // Create new PerformanceObserver instance
+    const observer = new PerformanceObserver((entryList) => {
+      for (const entry of entryList.getEntries()) {
+        if (!entry.hadRecentInput) {
+          const layoutShiftEntry = entry as LayoutShiftEntry;
+          clsValue += layoutShiftEntry.value;
+          clsEntries.push(layoutShiftEntry);
+        }
+      }
+    });
+
+    try {
+      // Start observing layout-shift entries
+      observer.observe({ type: "layout-shift", buffered: true });
+
+      // Disconnect after gathering entries
+      setTimeout(() => {
+        observer.disconnect();
+        this.metrics.layout = {
+          cumulativeLayoutShift: clsValue.toFixed(3),
+        };
+      }, 0);
+    } catch (e) {
+      console.warn("Layout Shift measurement not supported:", e);
+      this.metrics.layout = {
+        cumulativeLayoutShift: "Not supported",
+      };
+    }
   }
 
   async runFullTest(): Promise<string> {
@@ -109,73 +144,44 @@ class BrowserPerformanceTest {
   }
 
   generateReport(): string {
-    console.log(
-      `%c🔍 Browser Performance Report
-%c===========================
+    // Print Page Load Metrics table
+    console.group("%c🔍 Browser Performance Report", "font-size: 20px; font-weight: bold; color: #4CAF50;");
 
-%c📊 Page Load Metrics%c
-------------------
-Total Load Time: %c${this.metrics.timing.totalLoadTime}ms%c
-DOM Content Loaded: %c${this.metrics.timing.domContentLoaded}ms%c
-First Paint: %c${this.metrics.timing.firstPaint}ms%c
-First Contentful Paint: %c${this.metrics.timing.firstContentfulPaint}ms%c
+    console.group("%c📊 Page Load Metrics", "font-size: 16px; font-weight: bold; color: #2196F3;");
+    console.table({
+      "Total Load Time": `${this.metrics.timing.totalLoadTime}ms`,
+      "DOM Content Loaded": `${this.metrics.timing.domContentLoaded}ms`,
+      "First Paint": `${this.metrics.timing.firstPaint}ms`,
+      "First Contentful Paint": `${this.metrics.timing.firstContentfulPaint}ms`,
+    });
+    console.groupEnd();
 
-%c💾 Memory Usage%c
--------------
-Used JS Heap: %c${this.metrics.memory.usedJSHeapSize}MB%c
-Total JS Heap: %c${this.metrics.memory.totalJSHeapSize}MB%c
-JS Heap Limit: %c${this.metrics.memory.jsHeapSizeLimit}MB%c
+    console.group("%c💾 Memory Usage", "font-size: 16px; font-weight: bold; color: #2196F3;");
+    console.table({
+      "Used JS Heap": `${this.metrics.memory.usedJSHeapSize}MB`,
+      "Total JS Heap": `${this.metrics.memory.totalJSHeapSize}MB`,
+      "JS Heap Limit": `${this.metrics.memory.jsHeapSizeLimit}MB`,
+    });
+    console.groupEnd();
 
-%c📦 Resource Loading%c
------------------
-${this.metrics.resources
-  .map((res) => `%c${res.name}%c (${res.type}): %c${res.duration}ms%c, %c${(res.size / 1024).toFixed(1)}KB%c`)
-  .join("\n")}
-
-%c📐 Layout Metrics%c
----------------
-Cumulative Layout Shift: %c${this.metrics.layout.cumulativeLayoutShift}%c`,
-      // Title styles
-      "font-size: 20px; font-weight: bold; color: #4CAF50;",
-      "font-size: 16px; color: #666;",
-      // Section headers
-      "font-size: 16px; font-weight: bold; color: #2196F3;",
-      "color: #666;",
-      // Metrics values - alternating styles
-      "font-weight: bold; color: #E91E63;",
-      "color: #666;",
-      "font-weight: bold; color: #E91E63;",
-      "color: #666;",
-      "font-weight: bold; color: #E91E63;",
-      "color: #666;",
-      "font-weight: bold; color: #E91E63;",
-      "color: #666;",
-      // Memory section
-      "font-size: 16px; font-weight: bold; color: #2196F3;",
-      "color: #666;",
-      "font-weight: bold; color: #E91E63;",
-      "color: #666;",
-      "font-weight: bold; color: #E91E63;",
-      "color: #666;",
-      "font-weight: bold; color: #E91E63;",
-      "color: #666;",
-      // Resources section
-      "font-size: 16px; font-weight: bold; color: #2196F3;",
-      "color: #666;",
-      ...this.metrics.resources.flatMap(() => [
-        "font-weight: bold; color: #9C27B0;",
-        "color: #666;",
-        "font-weight: bold; color: #E91E63;",
-        "color: #666;",
-        "font-weight: bold; color: #E91E63;",
-        "color: #666;",
-      ]),
-      // Layout metrics section
-      "font-size: 16px; font-weight: bold; color: #2196F3;",
-      "color: #666;",
-      "font-weight: bold; color: #E91E63;",
-      "color: #666;",
+    console.group("%c📦 Resource Loading", "font-size: 16px; font-weight: bold; color: #2196F3;");
+    console.table(
+      this.metrics.resources.map((res) => ({
+        Resource: res.name,
+        Type: res.type,
+        Duration: `${res.duration}ms`,
+        Size: `${(res.size / 1024).toFixed(1)}KB`,
+      })),
     );
+    console.groupEnd();
+
+    console.group("%c📐 Layout Metrics", "font-size: 16px; font-weight: bold; color: #2196F3;");
+    console.table({
+      "Cumulative Layout Shift": this.metrics.layout.cumulativeLayoutShift,
+    });
+    console.groupEnd();
+
+    console.groupEnd();
 
     // Return plain text version for non-console usage
     return `
