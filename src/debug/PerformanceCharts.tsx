@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
   BarChart,
   Bar,
@@ -22,6 +22,14 @@ interface MemoryDataPoint {
   timestamp: number;
   usedHeap: number;
   totalHeap: number;
+}
+
+interface PerformanceDataPoint {
+  timestamp: number;
+  usedHeap: number;
+  totalHeap: number;
+  cpuUsage: number;
+  gpuUsage: number;
 }
 
 interface PerformanceChartsProps {
@@ -52,6 +60,9 @@ interface PerformanceChartsProps {
 export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({ metrics }) => {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [memoryTimeSeries, setMemoryTimeSeries] = useState<MemoryDataPoint[]>([]);
+  const [performanceData, setPerformanceData] = useState<PerformanceDataPoint[]>([]);
+  const [cpuWorker, setCpuWorker] = useState<Worker | null>(null);
+  const [gpuContext, setGpuContext] = useState<WebGLRenderingContext | null>(null);
 
   useEffect(() => {
     // Check system color scheme
@@ -86,6 +97,83 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({ metrics })
     const intervalId = setInterval(updateMemoryUsage, 1000);
     return () => clearInterval(intervalId);
   }, []);
+
+  useEffect(() => {
+    // Initialize CPU monitoring
+    const worker = new Worker(new URL("./cpuWorker.ts", import.meta.url));
+    setCpuWorker(worker);
+
+    // Initialize GPU monitoring
+    const canvas = document.createElement("canvas");
+    const gl = canvas.getContext("webgl");
+    setGpuContext(gl);
+
+    return () => {
+      worker.terminate();
+      if (gl) {
+        const ext = gl.getExtension("WEBGL_lose_context");
+        if (ext) ext.loseContext();
+      }
+    };
+  }, []);
+
+  const estimateGPUUsage = useCallback((gl: WebGLRenderingContext | null) => {
+    if (!gl) return 0;
+
+    const startTime = performance.now();
+
+    // Create a complex scene to measure GPU performance
+    const vertices = new Float32Array(10000);
+    for (let i = 0; i < vertices.length; i++) {
+      vertices[i] = Math.random();
+    }
+
+    const buffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+
+    // Measure time taken
+    const endTime = performance.now();
+    const timeTaken = endTime - startTime;
+
+    // Normalize to 0-100 range (this is a rough approximation)
+    return Math.min(100, (timeTaken / 16.67) * 100); // 16.67ms is roughly 60fps
+  }, []);
+
+  useEffect(() => {
+    if (!cpuWorker) return;
+
+    const updatePerformanceData = () => {
+      const { memory } = performance as any;
+      if (memory) {
+        const newDataPoint: PerformanceDataPoint = {
+          timestamp: Date.now(),
+          usedHeap: Math.round(memory.usedJSHeapSize / (1024 * 1024)),
+          totalHeap: Math.round(memory.totalJSHeapSize / (1024 * 1024)),
+          cpuUsage: 0, // Will be updated by worker
+          gpuUsage: estimateGPUUsage(gpuContext),
+        };
+
+        setPerformanceData((prev) => {
+          const newData = [...prev, newDataPoint];
+          return newData.filter((point) => point.timestamp > Date.now() - 30000);
+        });
+      }
+    };
+
+    cpuWorker.onmessage = (event) => {
+      setPerformanceData((prev) => {
+        const lastPoint = prev[prev.length - 1];
+        if (lastPoint) {
+          lastPoint.cpuUsage = event.data;
+        }
+        return [...prev];
+      });
+    };
+
+    const intervalId = setInterval(updatePerformanceData, 1000);
+    return () => clearInterval(intervalId);
+  }, [cpuWorker, gpuContext, estimateGPUUsage]);
 
   const colors = isDarkMode ? DARK_COLORS : LIGHT_COLORS;
   const textColor = isDarkMode ? "#FFFFFF" : "#000000";
@@ -224,6 +312,33 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({ metrics })
             />
             <Bar dataKey="duration" fill={colors[1]} radius={[4, 4, 0, 0]} />
           </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      <div style={chartStyle}>
+        <h3 style={{ fontSize: "18px", fontWeight: 600, marginBottom: "16px" }}>System Performance (%)</h3>
+        <ResponsiveContainer width="100%" height={300}>
+          <LineChart data={performanceData}>
+            <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
+            <XAxis
+              dataKey="timestamp"
+              tick={{ fill: textColor }}
+              tickFormatter={formatTimestamp}
+              domain={["dataMin", "dataMax"]}
+            />
+            <YAxis tick={{ fill: textColor }} domain={[0, 100]} />
+            <Tooltip
+              contentStyle={{
+                backgroundColor: isDarkMode ? "#2C2C2E" : "#FFFFFF",
+                border: "none",
+                borderRadius: "8px",
+                boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+              }}
+              labelFormatter={formatTimestamp}
+            />
+            <Line type="monotone" dataKey="cpuUsage" stroke={colors[2]} name="CPU Usage" strokeWidth={2} dot={false} />
+            <Line type="monotone" dataKey="gpuUsage" stroke={colors[3]} name="GPU Usage" strokeWidth={2} dot={false} />
+          </LineChart>
         </ResponsiveContainer>
       </div>
     </div>
