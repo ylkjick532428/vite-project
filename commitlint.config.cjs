@@ -51,8 +51,7 @@ module.exports = {
         enum: configBase.scopes,
       },
       subject: {
-        description:
-          "Write a short, imperative tense description of the change",
+        description: "Write a short, imperative tense description of the change",
       },
       body: {
         description: "Provide a longer description of the change",
