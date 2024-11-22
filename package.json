@@ -89,7 +89,7 @@
       "prettier --write"
     ]
   },
-  "name": "videosdk-uitoolkit",
+  "name": "react-vite-template",
   "private": true,
   "scripts": {
     "build": "tsc && cross-env NODE_ENV=production vite build && npm run umd",

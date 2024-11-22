@@ -136,6 +136,7 @@ export default function DebugSettingDraggable({
             >
               <span className="text-lg">⚙️</span>
             </button>
+            <button onClick={() => {}}>add performance test</button>
           </div>
         </div>
       </Draggable>
