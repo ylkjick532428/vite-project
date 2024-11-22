@@ -49,7 +49,7 @@ interface LayoutShiftEntry extends PerformanceEntry {
 }
 
 class BrowserPerformanceTest {
-  private metrics: PerformanceMetrics;
+  public metrics: PerformanceMetrics;
 
   constructor() {
     this.metrics = {

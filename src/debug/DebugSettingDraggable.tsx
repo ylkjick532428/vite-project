@@ -2,6 +2,8 @@ import { useCallback, useRef, useState, useEffect } from "react";
 import Draggable from "react-draggable";
 import "./DebugSettingDraggable.css";
 import MoveIcon from "./move-icon.svg";
+import BrowserPerformanceTest from "./BrowserPerformanceTest";
+import { PerformanceCharts } from "./PerformanceCharts";
 
 const STATIC_RESOLUTIONS = {
   "360p": { width: 640, height: 360 },
@@ -74,6 +76,8 @@ export default function DebugSettingDraggable({
   const toggleButtonRef = useRef<HTMLButtonElement>(null);
   const settingNodeRef = useRef(null);
   const [settingPosition, setSettingPosition] = useState({ x: 30, y: 50 });
+  const [performanceMetrics, setPerformanceMetrics] = useState<any>(null);
+  const [showCharts, setShowCharts] = useState(false);
 
   const handleSettingDrag = useCallback((_e: any, data: { x: number; y: number }) => {
     setSettingPosition({ x: data.x, y: data.y });
@@ -110,6 +114,14 @@ export default function DebugSettingDraggable({
   const toggleDraggable = () => {
     window.location.href = addDragParameter(window.location.href, !isDraggable);
   };
+
+  const handlePerformanceTest = async () => {
+    const performanceTest = new BrowserPerformanceTest();
+    await performanceTest.runFullTest();
+    setPerformanceMetrics(performanceTest.metrics);
+    setShowCharts(true);
+  };
+
   return (
     <>
       <Draggable
@@ -136,7 +148,12 @@ export default function DebugSettingDraggable({
             >
               <span className="text-lg">⚙️</span>
             </button>
-            <button onClick={() => {}}>add performance test</button>
+            <button
+              onClick={handlePerformanceTest}
+              className="flex items-center gap-2 px-3 py-1.5 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors duration-200 shadow-sm"
+            >
+              <span className="text-sm">📊</span>
+            </button>
           </div>
         </div>
       </Draggable>
@@ -238,6 +255,35 @@ export default function DebugSettingDraggable({
           </button>
         </div>
       </div>
+
+      {showCharts && performanceMetrics && (
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowCharts(false);
+          }}
+        >
+          <div
+            className="relative bg-white rounded-xl shadow-2xl max-h-[90vh] overflow-y-auto w-[90vw] max-w-[1200px] p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setShowCharts(false)}
+              className="performance-modal-close"
+              aria-label="Close performance charts"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path
+                  fillRule="evenodd"
+                  d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            </button>
+            <PerformanceCharts metrics={performanceMetrics} />
+          </div>
+        </div>
+      )}
     </>
   );
 }
