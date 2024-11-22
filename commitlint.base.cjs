@@ -53,13 +53,6 @@ module.exports = {
   types: defaultTypes,
   scopes: [
     "API",
-    "Audio",
-    "Video",
-    "Share",
-    "Participant",
-    "Chat",
-    "Recording",
-    "Caption",
     "Setting",
     "Mobile",
     "Build",
